@@ -1,1 +1,1 @@
-# MiVet
+MiVet is a web responsive app startup whose main goal is to promote and facilitate equine veterinary care. MiVet is an MVP and due to the proprietary nature of the code I can only provide code snippets of my code. This repository contains SQL, .NET, and React code for the Attendance feature.
