@@ -1,0 +1,212 @@
+import React, { Fragment, useEffect, useState } from "react";
+import debug from "sabio-debug";
+import SingleComment from "./SingleComment";
+import commentService from "services/commentService";
+import toastr from "toastr";
+import { Formik, Form, Field, ErrorMessage } from "formik";
+import PropTypes from "prop-types";
+import "../../toastr/build/toastr.css";
+
+const Comments = ({ currentUser }) => {
+  const _logger = debug.extend("Comments");
+
+  const [arrayOfComments, updateCommentsTree] = useState([]);
+  const [commentData, setComment] = useState({
+    subject: "test",
+    text: "",
+    parentId: 0,
+    entityTypeId: 1, //hardcoded until other component is finished
+    entityId: 1, //hardcoded until other component is finished
+    CreatedBy: currentUser.id,
+    IsDeleted: 0,
+    dateCreated: [],
+  });
+  const [eId] = useState({
+    entityTypeId: 1, // temp hardcoding
+    entityId: 1, // temp hardcoding
+  });
+
+  const updateComments = (aNewComment, changedComment) => {
+    _logger("updating comment", aNewComment);
+    const updatedComments = [...arrayOfComments]; //oc3
+    if (aNewComment) {
+      _logger("new Comment added");
+      updatedComments.push(aNewComment);
+      _logger(updatedComments);
+      updateCommentsTree(updatedComments);
+    } else if (changedComment) {
+      _logger("change added");
+      const index = updatedComments.findIndex(
+        (item) => item.id === changedComment.id
+      );
+      if (index > -1) {
+        updatedComments[index] = changedComment;
+        updateCommentsTree(updatedComments);
+      }
+    }
+    return null;
+  };
+
+  ////// Edit Comment /////////
+
+  ////// Render Comment and Replies /////////
+
+  const mapComments = (comment) => (
+    <SingleComment
+      comment={comment}
+      key={comment.id}
+      updateCommentsTree={updateComments}
+      currentUser={currentUser}
+      onDeleteClick={onDeleteComment}
+      setComment={setComment}
+    />
+  );
+
+  useEffect(() => {
+    renderComments();
+  }, []);
+
+  const renderComments = () => {
+    commentService
+      .getComment(eId.entityTypeId, eId.entityId)
+      .then(onGetCommentSuccess)
+      .catch(onGetCommentError);
+  };
+
+  const onGetCommentSuccess = (response) => {
+    let arrayOfComments = response.items;
+    updateCommentsTree(() => {
+      return arrayOfComments;
+    });
+  };
+
+  const onGetCommentError = (err) => {
+    _logger(err);
+  };
+
+  ////// Delete Comment ///////
+  _logger(arrayOfComments);
+
+  const onDeleteComment = (id) => {
+    let comments = loopThroughComments(arrayOfComments, id);
+    commentService.deleteComment(id).then(OnDeleteSuccess).then(onDeleteError);
+    _logger(comments);
+  };
+
+  const loopThroughComments = (comments, id) => {
+    _logger(comments);
+    if (comments) {
+      for (let c = 0; c < comments.length; c++) {
+        if (comments[c].id === Number(id)) {
+          comments.splice(c, 1);
+          _logger(comments);
+        } else {
+          if (comments[c].replies) {
+            loopThroughComments(comments[c].replies, id);
+          }
+        }
+      }
+    }
+    return comments;
+  };
+
+  const OnDeleteSuccess = (response) => {
+    _logger(response);
+  };
+
+  const onDeleteError = (err) => {
+    _logger(err);
+  };
+
+  ////// create Comment //////
+
+  const onSubmitClick = (values) => {
+    _logger("Values,", values);
+    values.dateCreated = new Date();
+    commentService
+      .addComment(values)
+      .then(onCommentAddSuccess)
+      .catch(onCommentAddError);
+  };
+
+  const onCommentAddSuccess = (response) => {
+    _logger(response);
+    toastr.success("Comments!!!");
+    updateComments(response.item);
+    setComment((prevState) => {
+      let newComm = { ...prevState };
+      newComm.text = "";
+      return newComm;
+    });
+    setComment("");
+  };
+
+  const onCommentAddError = (err) => {
+    _logger(err);
+    toastr.error("we done goofed");
+  };
+
+  return (
+    <Fragment>
+      <section className="gradient-custom">
+        <div className="container my-5 py-5">
+          <div className="row d-flex justify-content-center">
+            <div className="col-md-12 col-lg-10 col-xl-8">
+              <div className="card">
+                <div className="card-body p-4">
+                  <h4 className="text-center mb-4 pb-2">Comment Section</h4>
+
+                  <div className="row">
+                    <div className="col">
+                      <div className="row">
+                        {arrayOfComments?.map(mapComments)}
+                      </div>
+                      <Formik
+                        enableReinitialize={true}
+                        initialValues={commentData}
+                        onSubmit={onSubmitClick}
+                      >
+                        <Form noValidate name="chat-form" id="comment-form">
+                          <div className="row">
+                            <div className="col mb-2 mb-sm-0">
+                              <Field
+                                type="text"
+                                name="text"
+                                className="form-control textarea"
+                                placeholder="Write a comment!"
+                              />
+                              <ErrorMessage name="text" component="div" />
+                            </div>
+                            <div className="col-sm-auto">
+                              <div className="btn-group">
+                                <button
+                                  className="btn btn-success comment-send btn-block"
+                                  key="comment"
+                                >
+                                  Comment
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </Form>
+                      </Formik>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </Fragment>
+  );
+};
+Comments.propTypes = {
+  currentUser: PropTypes.shape({
+    id: PropTypes.number.isRequired,
+    isLoggedIn: PropTypes.bool.isRequired,
+    roles: PropTypes.arrayOf(PropTypes.string.isRequired),
+  }),
+};
+
+export default Comments;
